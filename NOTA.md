@@ -46,6 +46,14 @@ En pagos, si las filas de una cuota no coinciden entre sí, el libro se trata co
 
 **Corrida automática.** Se revisa cada 30 s. Si ya pasó la hora elegida (America/Caracas) y hoy no corrió, importa y después actualiza pagadas. El día se marca antes de empezar: si la importación falla, el operador ve la corrida fallida en lugar de un bucle de reintentos.
 
+**Clientes creados a mano.** El enunciado hace nacer a los clientes de la API del ISP. Agregué la creación manual (útil para registrar a un cliente antes de que el ISP lo sincronice) sin romper esa regla:
+- El documento pasa por **la misma normalización** que la importación, así que `V-12.345.678` y `V12345678` son el mismo cliente y no se puede repetir.
+- El cliente queda marcado con origen «Creado en Cobrix».
+- Si después la importación trae a ese titular, sus contratos y facturas **se agregan a ese cliente**, sin duplicarlo. Hay una prueba para ese caso.
+- Solo se pueden editar el correo y el teléfono, y cada cambio queda en el historial. El nombre y el documento vienen del ISP.
+
+**Modales nativos.** Uso `<dialog>`, que da gratis el foco atrapado, Escape y la accesibilidad. Los formularios de los modales se envían con `fetch` y muestran el error junto al campo. Sin JavaScript siguen funcionando: el de «Nuevo cliente» se abre en la página con `?nuevo=1` y su formulario se envía normalmente.
+
 **Configuración precargada.** En el primer `npm start` dejo el proveedor apuntando a la API local, para que el evaluador pueda sincronizar de inmediato. La contraseña nunca se envía al HTML; si el campo queda vacío al guardar, se conserva la actual.
 
 **Ambigüedades que resolví:**
@@ -81,6 +89,11 @@ En pagos, si las filas de una cuota no coinciden entre sí, el libro se trata co
   - **mayores deudores:** con enlace a su expediente.
 
   Los gráficos son HTML y CSS, sin librerías, con tooltip por mouse y teclado y una vista «Ver como tabla». Validé la paleta con un verificador de daltonismo y contraste, en modo claro y oscuro.
+- **Modales que ayudan a no equivocarse:**
+  - **Nuevo cliente:** una ficha muestra en vivo cómo quedará guardado el documento, si es persona natural o jurídica, y si ya existe.
+  - **Corrida:** un anillo de progreso que termina en el resumen.
+  - **Probar conexión:** un diagnóstico paso a paso (datos → sesión → contratos) que dice exactamente dónde falla.
+  - **Detalle de factura:** su historia completa.
 - **«Requiere atención» en el Resumen.** Reúne los abonos parciales, las cuotas sin evidencia, los contratos descartados por respuestas inconsistentes y lo frenado por topes, con enlace a cada caso. Es lo primero que debería mirar un operador.
 - **Antigüedad de la deuda.** Barras por tramos (sin vencer, 1–30, 31–60, 61–90 y más de 90 días desde el corte), con monto y número de facturas. Ayuda a decidir por dónde empezar a cobrar.
 - **Progreso en vivo de la corrida.** Al lanzarla, el panel muestra «12 de 27 contratos» con una barra y abre el resultado al terminar.
@@ -104,6 +117,7 @@ Mi trabajo fue decidir, revisar y verificar. La regla que seguí fue no dar nada
 - **Formato de los montos.** Los motivos mostraban «USD 5.00» en lugar del formato local «USD 5,00».
 - **Colores de los gráficos.** No los elegí a ojo: los validé con un verificador de separación para daltonismo y de contraste. Las barras de antigüedad usan un solo tono de claro a oscuro en lugar de verde, amarillo y rojo, porque esos colores se reservan para estados.
 - **Desborde en móvil.** La captura móvil parecía desbordarse. Medí con emulación de dispositivo: la página mide exactamente 390 px y solo las tablas anchas se desplazan dentro de su recuadro, que es lo deseado. El falso positivo venía del ancho mínimo de ventana de Chrome en Windows.
+- **Un error que las pruebas no veían.** Al unir los dos scripts del panel sin `;`, el segundo `(() => {…})()` se interpretaba como una llamada al resultado del primero, y el modal de la corrida no se abría. Lo detecté al recorrer el panel con un navegador automatizado (Selenium) y leer su consola. Lo corregí y agregué una prueba que ejecuta el script en un DOM simulado y que falla si se quita el `;`.
 - **Un error mío al guardar.** Incluí en un commit la base del administrador modificada por pagos del simulador; lo revertí para entregarla intacta.
 
-Todo lo anterior está cubierto por las 57 pruebas: el ciclo de aceptación completo pasa contra la API por HTTP.
+Todo lo anterior está cubierto por las 66 pruebas: el ciclo de aceptación completo pasa contra la API por HTTP.

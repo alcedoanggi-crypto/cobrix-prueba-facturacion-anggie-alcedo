@@ -7,6 +7,7 @@ import type { Atencion, Deudor, Expediente, FilaCliente, PuntoPeriodo, Totales, 
 import { ESTADOS_CONOCIDOS, ETIQUETA_IMPORTACION, ETIQUETA_PAGO, TIPOS_DOCUMENTO } from '../cobrix/reglas.ts'
 import { numeroFactura, type Configuracion, type Corrida, type ItemCorrida } from '../cobrix/store.ts'
 import { barrasHorizontales, columnasApiladas, medidor } from './graficos.ts'
+import { modalConexion, modalContacto, modalFactura, modalNuevoCliente } from './modales.ts'
 import { CONTRACT_STATUS_TONE, date, dateTime, html, pill, raw, usd, type Raw, type Tone } from './layout.ts'
 
 type Row = Record<string, unknown>
@@ -177,10 +178,12 @@ export function vistaResumen(d: {
 
 // ---------------------------------------------------------------- Clientes
 
-export function vistaClientes(filas: FilaCliente[], q: string, total: number): Raw {
+export function vistaClientes(filas: FilaCliente[], q: string, total: number, nuevoAbierto = false): Raw {
 	const vacio = total === 0
 	return html`
-	<div class="head"><div><h1>Clientes</h1><p>Un cliente por cédula o RIF: los contratos del mismo titular se agrupan.</p></div></div>
+	<div class="head"><div><h1>Clientes</h1><p>Un cliente por cédula o RIF: los contratos del mismo titular se agrupan.</p></div>
+		<a class="btn primary" href="/clientes?nuevo=1" data-abrir="m-nuevo-cliente"><span aria-hidden="true">＋</span> Nuevo cliente</a></div>
+	${modalNuevoCliente(nuevoAbierto)}
 	<section class="card">
 		<header>
 			<form class="search" method="get" action="/clientes" role="search">
@@ -189,7 +192,7 @@ export function vistaClientes(filas: FilaCliente[], q: string, total: number): R
 			</form>
 			<span class="subtle"><span data-contador="tabla-clientes">${filas.length}</span> de ${total} clientes</span>
 		</header>
-		${vacio ? html`<div class="body"><div class="vacio"><strong>Aún no hay clientes</strong><span>Los clientes se crean al importar facturas desde el administrador.</span><a class="btn primary" href="/sincronizacion">Ir a Sincronización</a></div></div>`
+		${vacio ? html`<div class="body"><div class="vacio"><strong>Aún no hay clientes</strong><span>Los clientes se crean al importar facturas desde el administrador, o a mano con «Nuevo cliente».</span><a class="btn primary" href="/sincronizacion">Ir a Sincronización</a></div></div>`
 		: filas.length === 0 ? html`<div class="body"><div class="vacio"><strong>Nada coincide con «${q}»</strong><span>Prueba con parte del nombre o solo los números del documento.</span><a href="/clientes">Ver todos</a></div></div>`
 		: html`<div class="table-wrap"><table id="tabla-clientes">
 			<thead><tr><th>Cliente</th><th>Documento</th><th>Tipo</th><th class="num">Contratos</th><th class="num">Abiertas</th><th class="num">Pagadas</th><th class="num">Deuda</th><th>Vencimiento más antiguo</th></tr></thead>
@@ -217,10 +220,13 @@ function antiguedadPill(vencimiento: string): Raw {
 export function vistaExpediente(e: Expediente, cartera: PuntoPeriodo[]): Raw {
 	const c = e.cliente
 	const juridica = c.persona === 'juridica'
-	const iconoEvento: Record<string, Tone> = { cliente_creado: 'info', factura_importada: 'mute', factura_pagada: 'ok', abono_parcial: 'warn' }
+	const iconoEvento: Record<string, Tone> = { cliente_creado: 'info', factura_importada: 'mute', factura_pagada: 'ok', abono_parcial: 'warn', contacto_actualizado: 'info' }
 	return html`
 	<div class="head"><div><a href="/clientes">← Clientes</a><h1>${String(c.nombre)}</h1>
-		<p>${juridica ? 'Persona jurídica' : 'Persona natural'} · <span class="mono">${String(c.documento)}</span></p></div></div>
+		<p>${juridica ? 'Persona jurídica' : 'Persona natural'} · <span class="mono">${String(c.documento)}</span>${c.origen === 'Creado en Cobrix' ? html` · ${pill('Creado en Cobrix', 'info')}` : ''}</p></div>
+		<button type="button" class="btn" data-abrir="m-contacto">Editar contacto</button></div>
+	${modalContacto(c.id as number, String(c.correo ?? ''), String(c.telefono ?? ''))}
+	${modalFactura()}
 
 	<div class="kpis">
 		<div class="kpi destacado"><span>Deuda abierta</span><strong>${usd(e.resumen.deudaCents)}</strong></div>
@@ -251,13 +257,13 @@ export function vistaExpediente(e: Expediente, cartera: PuntoPeriodo[]): Raw {
 	${cartera.length > 1 ? html`<section class="card"><header><h2>Facturas por periodo</h2><span class="subtle">USD por mes de la cuota</span></header>
 		<div class="body">${graficoCartera(cartera, `Facturas de ${String(c.nombre)} por periodo`)}</div></section>` : ''}
 
-	<section class="card"><header><h2>Facturas</h2><span class="subtle">una factura por cuota del administrador</span></header>
+	<section class="card"><header><h2>Facturas</h2><span class="subtle">una factura por cuota · pulsa una fila para ver su detalle</span></header>
 		${e.facturas.length === 0 ? html`<div class="body"><div class="vacio"><strong>Sin facturas</strong></div></div>` : html`<div class="table-wrap"><table>
 		<thead><tr><th>Factura</th><th>Cuota en el administrador</th><th>Periodo</th><th>Vence</th><th>Corte</th><th class="num">Total</th><th class="num">Saldo</th><th>Estado</th></tr></thead>
 		<tbody>${e.facturas.map(f => {
 			const parcial = f.estado === 'abierta' && typeof f.saldo_admin_cents === 'number' && (f.saldo_admin_cents as number) < (f.saldo_cents as number)
-			return html`<tr>
-				<td class="mono nowrap">${numeroFactura(f.id as number)}</td>
+			return html`<tr class="link" data-factura="${f.id as number}" tabindex="0" title="Ver el detalle de la factura">
+				<td class="mono nowrap"><a href="#" data-factura-link="${f.id as number}">${numeroFactura(f.id as number)}</a></td>
 				<td><span class="mono">${String(f.deuda_id)}</span><div class="subtle">contrato ${String(f.contrato_id)} · ${String(f.descripcion)}</div></td>
 				<td class="nowrap">${periodoLegible(f.periodo)}</td>
 				<td class="nowrap">${date(f.vencimiento)}</td>
@@ -387,6 +393,7 @@ export function vistaConfiguracion(c: Configuracion, d: { proxima: string | null
 	const chk = (on: boolean) => (on ? raw('checked') : '')
 	return html`
 	<div class="head"><div><h1>Configuración</h1><p>Datos de la empresa y del proveedor, y las reglas de importación. Cada bloque se guarda por separado.</p></div></div>
+	${modalConexion()}
 
 	<div class="cols mitad">
 		<section class="card" id="empresa"><header><h2>Empresa</h2></header>
@@ -406,7 +413,7 @@ export function vistaConfiguracion(c: Configuracion, d: { proxima: string | null
 						<small>${c.proveedor.password ? 'Déjala vacía para conservar la actual.' : 'Aún no hay contraseña guardada.'}</small></label>
 				</div>
 				<div class="form-actions">
-					<button class="btn" formaction="/configuracion/probar" data-ocupado="Probando…">Probar conexión</button>
+					<button class="btn" formaction="/configuracion/probar" data-probar>Probar conexión</button>
 					<button class="btn primary">Guardar proveedor</button>
 				</div>
 			</form></section>

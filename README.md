@@ -20,6 +20,13 @@ Importa clientes y facturas desde la API del administrador de facturas de un ISP
 </tr>
 </table>
 
+### Modales
+
+| | |
+| --- | --- |
+| <img src="docs/capturas/entrega/m3-nuevo-cliente.png" alt="Nuevo cliente"><br><sub><b>Nuevo cliente</b>: la ficha muestra en vivo cómo se guarda el documento (misma normalización que la importación) y avisa si ya existe</sub> | <img src="docs/capturas/entrega/m2-corrida-importacion.png" alt="Corrida en curso"><br><sub><b>Corrida</b>: anillo de progreso en vivo que termina en el resumen de la corrida</sub> |
+| <img src="docs/capturas/entrega/m6-detalle-factura.png" alt="Detalle de factura"><br><sub><b>Detalle de factura</b>: datos del ISP y la historia de la factura</sub> | <img src="docs/capturas/entrega/m8-probar-conexion-error.png" alt="Probar conexión"><br><sub><b>Probar conexión</b>: diagnóstico paso a paso que dice dónde falla</sub> |
+
 Más capturas en [`docs/capturas/entrega/`](docs/capturas/entrega/), incluidas las de móvil.
 
 ## Levantarlo
@@ -56,7 +63,7 @@ Para repetir desde cero: *Configuración › Empezar de cero* vacía Cobrix, y `
 ## Pruebas
 
 ```bash
-npm test             # 57 pruebas, sobre HTTP real contra una copia temporal del administrador
+npm test             # 66 pruebas, sobre HTTP real contra una copia temporal del administrador
 npm run typecheck
 ```
 
@@ -65,7 +72,8 @@ npm run typecheck
 | `test/aceptacion.test.ts` | El ciclo completo del §5: simular → importar → reimportar → pagar y anular en la caja → simular actualización → actualizar → repetir |
 | `test/reglas.test.ts` | Cada regla del §4 como función pura: identificación, periodo, estados, moneda, residuales, respuestas contradictorias, ventana, recientes, pagada, abono parcial, exonerada, sin evidencia y libro inconsistente; también los ejes de los gráficos |
 | `test/robustez.test.ts` | Credenciales malas, API caída a mitad de la corrida (no queda nada a medias), error HTTP en un contrato, token vencido, corridas simultáneas, topes, días de gracia y la restricción `UNIQUE` |
-| `test/panel.test.ts` | Formularios y validaciones, contraseña oculta, «Probar conexión», lanzar corridas, CSV, búsqueda, vaciar datos y corrida automática diaria |
+| `test/panel.test.ts` | Formularios y validaciones, contraseña oculta, «Probar conexión», lanzar corridas, CSV, búsqueda, vaciar datos, corrida automática diaria y que el script del panel se ejecute sin errores |
+| `test/clientes.test.ts` | Clientes creados a mano (validación, documento repetido escrito de otra forma, la importación los reutiliza sin duplicar), editar contacto, detalle de factura y diagnóstico de conexión |
 | `test/entorno.test.ts` | La prueba entregada, adaptada: ahora comprueba las pantallas reales (ver la nota) |
 
 ## Cómo está hecho
@@ -80,10 +88,12 @@ src/cobrix/                 el lado de Cobrix
   store.ts                  SQLite de Cobrix: config, clientes, contratos, facturas, eventos, corridas e ítems
   consultas.ts              lecturas para el panel: totales, cartera por periodo, antigüedad, mayores deudores, alertas
   programador.ts            corrida automática diaria (America/Caracas)
+  clientes.ts               clientes creados a mano, editar contacto y detalle de factura
 src/web/                    el panel, renderizado en el servidor y sin dependencias
   app.ts                    rutas, formularios (POST → redirect → GET), CSV y API de progreso
   vistas.ts                 las pantallas
   graficos.ts               gráficos en HTML/CSS con tooltip y vista de tabla (paleta validada para daltonismo)
+  modales.ts                modales nativos (<dialog>): nuevo cliente, contacto, factura, corrida y conexión
   layout.ts, estilos.ts     base del esqueleto, más estilos y un script pequeño (opcional)
 ```
 

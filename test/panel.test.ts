@@ -114,3 +114,19 @@ describe('panel', () => {
 		assert.equal(proximaAutomatica(e.store, ahora), null)
 	})
 })
+
+describe('script del panel', () => {
+	it('se ejecuta sin errores (los dos módulos unidos no se interpretan como una sola llamada)', async () => {
+		const vm = await import('node:vm')
+		const { JS_PANEL } = await import('../src/web/estilos.ts')
+		const { JS_MODALES } = await import('../src/web/estilos-modales.ts')
+		// A do-nothing DOM: any property is another stub, any call returns a stub, lists are empty.
+		const stub: object = new Proxy(function () {}, {
+			get: (_t, k) => (k === Symbol.iterator ? function* () {} : k === 'then' ? undefined : k === 'dataset' ? {} : stub),
+			apply: () => stub, construct: () => stub, set: () => true,
+		})
+		const contexto = { document: stub, window: stub, location: stub, fetch: stub, FormData: stub, setTimeout: () => 0, clearTimeout: () => {}, URLSearchParams, Intl, JSON, Math, console }
+		assert.doesNotThrow(() => vm.runInNewContext(`${JS_PANEL};\n${JS_MODALES}`, contexto))
+		assert.throws(() => vm.runInNewContext(`${JS_PANEL}\n${JS_MODALES}`, contexto), /is not a function/, 'sin «;» falla: así se detectó el error')
+	})
+})

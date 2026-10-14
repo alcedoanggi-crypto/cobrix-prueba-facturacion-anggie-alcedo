@@ -7,13 +7,16 @@ import { readFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 
 import { ClienteAdministrador, ErrorApi } from '../cobrix/api.ts'
+import { actualizarContacto, crearCliente, detalleFactura, ErrorValidacion, leerDocumento } from '../cobrix/clientes.ts'
 import { antiguedad, carteraPorPeriodo, clientes, expediente, mayoresDeudores, requiereAtencion, totales } from '../cobrix/consultas.ts'
 import { proximaAutomatica } from '../cobrix/programador.ts'
 import { ESTADOS_CONOCIDOS, TIPOS_DOCUMENTO, type TipoDocumento } from '../cobrix/reglas.ts'
 import { CorridaEnCurso, Sincronizador } from '../cobrix/sincronizacion.ts'
-import { Store, type Configuracion, type Corrida } from '../cobrix/store.ts'
+import { numeroFactura, Store, type Configuracion, type Corrida } from '../cobrix/store.ts'
+import { CSS_MODALES, JS_MODALES } from './estilos-modales.ts'
 import { CSS_PANEL, JS_PANEL } from './estilos.ts'
 import { CSS, esc, html, layout, type Raw, type Tone } from './layout.ts'
+import { modalCorrida } from './modales.ts'
 import {
 	noEncontrado, vistaClientes, vistaConfiguracion, vistaCorrida, vistaExpediente, vistaResumen, vistaSincronizacion,
 } from './vistas.ts'
@@ -46,12 +49,14 @@ export function createApp(deps: AppDeps): Server {
 		const footer = config.proveedor.url
 			? `<span class="dot ${sync.corridaEnCurso ? 'warn' : 'ok'}"></span>${esc(sync.corridaEnCurso ? 'Corrida en curso' : 'Proveedor configurado')}`
 			: '<span class="dot bad"></span>Proveedor sin configurar'
-		const page = (title: string, active: string, body: Raw, status = 200) => sendHtml(res, status, layout({ title, active, body, flash, company, footer }))
+		const page = (title: string, active: string, body: Raw, status = 200) => sendHtml(res, status, layout({ title, active, body, flash, company, footer, extra: modalCorrida() }))
 		const proveedorListo = Boolean(config.proveedor.url && config.proveedor.usuario && config.proveedor.password)
 
 		if (req.method === 'GET') {
-			if (path === '/app.css') return send(res, 200, CSS + CSS_PANEL + ENUNCIADO_CSS, 'text/css; charset=utf-8')
-			if (path === '/app.js') return send(res, 200, JS_PANEL, 'text/javascript; charset=utf-8')
+			if (path === '/app.css') return send(res, 200, CSS + CSS_PANEL + CSS_MODALES + ENUNCIADO_CSS, 'text/css; charset=utf-8')
+			// The «;» matters: both scripts are IIFEs and would otherwise be parsed as one call chain.
+			if (path === '/app.js') return send(res, 200, `${JS_PANEL};\n${JS_MODALES}`, 'text/javascript; charset=utf-8')
+			if (path === '/favicon.svg' || path === '/favicon.ico') return send(res, 200, FAVICON, 'image/svg+xml')
 			if (path === '/enunciado') return page('Enunciado', '', assignmentPage())
 
 			if (path === '/') {
@@ -62,7 +67,7 @@ export function createApp(deps: AppDeps): Server {
 			}
 			if (path === '/clientes') {
 				const q = (url.searchParams.get('q') ?? '').slice(0, 80)
-				return page('Clientes', '/clientes', vistaClientes(clientes(store, q), q, totales(store).clientes))
+				return page('Clientes', '/clientes', vistaClientes(clientes(store, q), q, totales(store).clientes, url.searchParams.get('nuevo') === '1'))
 			}
 			const cliente = /^\/clientes\/(\d+)$/.exec(path)
 			if (cliente) {
@@ -88,6 +93,21 @@ export function createApp(deps: AppDeps): Server {
 				if (corrida[2]) return sendCsv(res, `corrida-${c.id}-${c.tipo}${c.simulacion ? '-simulacion' : ''}.csv`, items)
 				return page(`Corrida #${c.id}`, '/sincronizacion', vistaCorrida(c, items, url.searchParams.get('resultado') ?? ''))
 			}
+			if (path === '/api/identificacion') {
+				// Live preview in the «Nuevo cliente» modal: the same normalization the import uses.
+				try {
+					const ident = leerDocumento(url.searchParams.get('doc') ?? '')
+					const existe = store.db.prepare('SELECT id, nombre FROM clientes WHERE id_externo = ?').get(ident.id) as { id: number; nombre: string } | undefined
+					return sendJson(res, 200, { ok: true, ...ident, existe: existe ? { ...existe } : null })
+				} catch (error) {
+					return sendJson(res, 200, { ok: false, error: error instanceof Error ? error.message : String(error) })
+				}
+			}
+			const factura = /^\/api\/facturas\/(\d+)$/.exec(path)
+			if (factura) {
+				const f = detalleFactura(store, Number(factura[1]))
+				return f ? sendJson(res, 200, { ...f, numero: numeroFactura(f.id as number) }) : sendJson(res, 404, { error: 'Esa factura no existe.' })
+			}
 			const api = /^\/api\/corridas\/(\d+)$/.exec(path)
 			if (api) {
 				const c = store.corrida(Number(api[1]))
@@ -104,21 +124,33 @@ export function createApp(deps: AppDeps): Server {
 
 		if (req.method === 'POST') {
 			const form = await readForm(req)
+			const quiereJson = (req.headers.accept ?? '').includes('application/json')
 			const volver = (to: string, mensaje: string, t: Tone) => {
 				// The flash goes in the query; the #anchor (if any) must stay at the end.
 				const [base, ancla] = to.split('#') as [string, string | undefined]
 				redirect(res, `${base}?tone=${t}&msg=${encodeURIComponent(mensaje)}${ancla ? `#${ancla}` : ''}`)
 			}
 			try {
+				const contacto = /^\/clientes\/(\d+)\/contacto$/.exec(path)
+				if (contacto) {
+					const id = Number(contacto[1])
+					try {
+						actualizarContacto(store, id, form.get('correo') ?? '', form.get('telefono') ?? '')
+						return quiereJson ? sendJson(res, 200, { ok: true, ir: `/clientes/${id}?tone=ok&msg=${encodeURIComponent('Contacto actualizado.')}` }) : volver(`/clientes/${id}`, 'Contacto actualizado.', 'ok')
+					} catch (error) {
+						if (!(error instanceof ErrorValidacion)) throw error
+						return quiereJson ? sendJson(res, 422, { ok: false, campo: error.campo, error: error.message }) : volver(`/clientes/${id}`, error.message, 'bad')
+					}
+				}
 				switch (path) {
 					case '/sincronizacion/ejecutar': {
 						const tipo = form.get('tipo') === 'pagadas' ? 'pagadas' : form.get('tipo') === 'importacion' ? 'importacion' : null
 						if (!tipo) throw new ErrorFormulario('Tipo de corrida desconocido.')
 						try {
 							const { id } = sync.iniciar(tipo, { simulacion: form.get('simulacion') !== '0' })
-							return redirect(res, `/sincronizacion/${id}`)
+							return quiereJson ? sendJson(res, 200, { ok: true, id }) : redirect(res, `/sincronizacion/${id}`)
 						} catch (error) {
-							if (error instanceof CorridaEnCurso) return volver('/sincronizacion', error.message, 'warn')
+							if (error instanceof CorridaEnCurso) return quiereJson ? sendJson(res, 409, { ok: false, error: error.message }) : volver('/sincronizacion', error.message, 'warn')
 							throw error
 						}
 					}
@@ -170,6 +202,19 @@ export function createApp(deps: AppDeps): Server {
 						const activa = form.get('activa') === '1'
 						store.guardarConfig('automatica', { activa, hora })
 						return volver('/configuracion', activa ? `Corrida automática activada todos los días a las ${hora} (Caracas).` : 'Corrida automática desactivada.', 'ok')
+					}
+					case '/clientes': {
+						try {
+							const id = crearCliente(store, { documento: form.get('documento') ?? '', nombre: form.get('nombre') ?? '', correo: form.get('correo') ?? '', telefono: form.get('telefono') ?? '' })
+							const mensaje = 'Cliente creado. Si el administrador trae a este titular, sus facturas se agregarán aquí.'
+							return quiereJson ? sendJson(res, 200, { ok: true, ir: `/clientes/${id}?tone=ok&msg=${encodeURIComponent(mensaje)}` }) : volver(`/clientes/${id}`, mensaje, 'ok')
+						} catch (error) {
+							if (!(error instanceof ErrorValidacion)) throw error
+							return quiereJson ? sendJson(res, 422, { ok: false, campo: error.campo, error: error.message }) : volver('/clientes', error.message, 'bad')
+						}
+					}
+					case '/api/probar-conexion': {
+						return sendJson(res, 200, { pasos: await diagnosticar(leerProveedorSeguro(form, config)) })
 					}
 					case '/configuracion/vaciar': {
 						if (form.get('confirmo') !== '1') throw new ErrorFormulario('Marca «Entiendo que no se puede deshacer» para vaciar los datos.')
@@ -261,7 +306,52 @@ async function readForm(req: IncomingMessage): Promise<URLSearchParams> {
 	return new URLSearchParams(Buffer.concat(chunks).toString('utf8'))
 }
 
+/** Like leerProveedor but never throws: the diagnosis itself reports what is missing. */
+function leerProveedorSeguro(form: URLSearchParams, config: Configuracion): Configuracion['proveedor'] {
+	return {
+		url: (form.get('url') ?? '').trim().replace(/\/+$/, ''),
+		usuario: (form.get('usuario') ?? '').trim(),
+		password: form.get('password') || config.proveedor.password,
+	}
+}
+
+interface Paso { titulo: string; ok: boolean; detalle: string; ms: number }
+
+/** «Probar conexión» step by step, so the operator sees exactly where it breaks. */
+async function diagnosticar(proveedor: Configuracion['proveedor']): Promise<Paso[]> {
+	const pasos: Paso[] = []
+	const medir = async (titulo: string, fn: () => Promise<string>): Promise<boolean> => {
+		const t0 = Date.now()
+		try {
+			pasos.push({ titulo, ok: true, detalle: await fn(), ms: Date.now() - t0 })
+			return true
+		} catch (error) {
+			pasos.push({ titulo, ok: false, detalle: error instanceof Error ? error.message : String(error), ms: Date.now() - t0 })
+			return false
+		}
+	}
+	const api = new ClienteAdministrador(proveedor)
+	const ok1 = await medir('Datos del proveedor', async () => {
+		if (!proveedor.url || !proveedor.usuario || !proveedor.password) throw new Error('Faltan la URL, el usuario o la contraseña.')
+		const u = new URL(proveedor.url)
+		if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error('La URL debe empezar por http:// o https://.')
+		return `${u.host} · usuario «${proveedor.usuario}»`
+	})
+	if (!ok1) return pasos
+	const ok2 = await medir('Iniciar sesión', async () => {
+		const sesion = await api.login()
+		return `Token emitido para «${sesion.usuario}», vence ${sesion.venceUtc.replace('T', ' ')} UTC`
+	})
+	if (!ok2) return pasos
+	await medir('Listar contratos', async () => `${(await api.listaContratos()).length} contratos disponibles para sincronizar`)
+	return pasos
+}
+
 // ---------------------------------------------------------------- responses
+
+function sendJson(res: ServerResponse, status: number, body: unknown): void {
+	send(res, status, JSON.stringify(body), 'application/json; charset=utf-8')
+}
 
 const ENUNCIADO_CSS = `pre.doc { margin: 0; white-space: pre-wrap; font: 13.5px/1.6 var(--mono); color: var(--fg); max-width: 110ch; }`
 
@@ -294,3 +384,5 @@ function send(res: ServerResponse, status: number, body: string, type: string): 
 	res.writeHead(status, { 'content-type': type, 'content-length': Buffer.byteLength(body), 'x-content-type-options': 'nosniff' })
 	res.end(body)
 }
+
+const FAVICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#3b4cca"/><text x="16" y="22" font-family="system-ui,sans-serif" font-size="18" font-weight="700" fill="#fff" text-anchor="middle">C</text></svg>'

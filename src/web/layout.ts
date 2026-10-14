@@ -61,7 +61,7 @@ const NAV = [
 	['/configuracion', 'Configuración'],
 ] as const
 
-export function layout(input: { title: string; active: string; body: Raw; flash?: { tone: Tone; text: string } | undefined; company: string; footer?: string }): string {
+export function layout(input: { title: string; active: string; body: Raw; flash?: { tone: Tone; text: string } | undefined; company: string; footer?: string; extra?: string }): string {
 	return `<!doctype html>
 <html lang="es">
 <head>
@@ -69,6 +69,7 @@ export function layout(input: { title: string; active: string; body: Raw; flash?
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(input.title)} · Cobrix</title>
 <link rel="stylesheet" href="/app.css">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <script src="/app.js" defer></script>
 </head>
 <body>
@@ -85,6 +86,7 @@ export function layout(input: { title: string; active: string; body: Raw; flash?
 </div>
 <dialog id="confirmar"><form method="dialog"><div class="body"><h2 data-titulo>¿Continuar?</h2><p data-texto></p></div>
 	<footer><button class="btn" value="cancelar">Cancelar</button><button class="btn primary" value="ok" data-ok>Continuar</button></footer></form></dialog>
+${input.extra ?? ''}
 </body>
 </html>`
 }
