@@ -178,3 +178,12 @@ describe('pagos: libro de cuotas', () => {
 		assert.equal(evaluarPago('7000010', 900101, 2500, [libro({}, 0)]).resultado, 'inconsistente')
 	})
 })
+
+describe('gráficos: marcas del eje', () => {
+	it('usa pasos limpios (1, 2, 2.5 o 5 por potencia de 10) que cubren el máximo', async () => {
+		const { ticks } = await import('../src/web/graficos.ts')
+		assert.deepEqual(ticks(61_500), [0, 20_000, 40_000, 60_000, 80_000])
+		assert.deepEqual(ticks(100), [0, 25, 50, 75, 100])
+		assert.deepEqual(ticks(0), [0])
+	})
+})

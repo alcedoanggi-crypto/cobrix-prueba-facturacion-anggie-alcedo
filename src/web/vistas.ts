@@ -3,9 +3,10 @@
  */
 
 import { today } from '../shared/dates.ts'
-import type { Atencion, Expediente, FilaCliente, Totales, Tramo } from '../cobrix/consultas.ts'
+import type { Atencion, Deudor, Expediente, FilaCliente, PuntoPeriodo, Totales, Tramo } from '../cobrix/consultas.ts'
 import { ESTADOS_CONOCIDOS, ETIQUETA_IMPORTACION, ETIQUETA_PAGO, TIPOS_DOCUMENTO } from '../cobrix/reglas.ts'
 import { numeroFactura, type Configuracion, type Corrida, type ItemCorrida } from '../cobrix/store.ts'
+import { barrasHorizontales, columnasApiladas, medidor } from './graficos.ts'
 import { CONTRACT_STATUS_TONE, date, dateTime, html, pill, raw, usd, type Raw, type Tone } from './layout.ts'
 
 type Row = Record<string, unknown>
@@ -79,54 +80,88 @@ function botonesCorrida(tipo: Corrida['tipo'], deshabilitado: boolean): Raw {
 	</form>`
 }
 
+
+const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+/** `2026-08` → `ago 26`, for chart axes. */
+const periodoCorto = (p: string): string => `${MESES_CORTOS[Number(p.slice(5, 7)) - 1]} ${p.slice(2, 4)}`
+const ejeUsd = (cents: number): string => new Intl.NumberFormat('es-VE', { maximumFractionDigits: 0 }).format(cents / 100)
+
+/** Portfolio by period: open (blue) and collected (orange), stacked. */
+function graficoCartera(puntos: readonly PuntoPeriodo[], etiqueta: string): Raw {
+	return columnasApiladas({
+		etiqueta,
+		categorias: puntos.map(p => periodoCorto(p.periodo)),
+		series: [{ nombre: 'Por cobrar', clase: 's1' }, { nombre: 'Cobrado por el ISP', clase: 's2' }],
+		valores: [puntos.map(p => p.porCobrarCents), puntos.map(p => p.cobradoCents)],
+		formato: usd,
+		formatoEje: ejeUsd,
+	})
+}
+
 // ---------------------------------------------------------------- Resumen
 
 export function vistaResumen(d: {
 	totales: Totales; config: Configuracion; corridas: Corrida[]; tramos: Tramo[]; atencion: Atencion[]
-	proxima: string | null; enCurso: number | null
+	proxima: string | null; enCurso: number | null; cartera: PuntoPeriodo[]; deudores: Deudor[]
 }): Raw {
 	const t = d.totales
 	const proveedorListo = Boolean(d.config.proveedor.url && d.config.proveedor.usuario && d.config.proveedor.password)
-	const maxTramo = Math.max(...d.tramos.map(x => x.montoCents), 1)
 	const iconos: Record<Atencion['tipo'], Tone> = { abono_parcial: 'warn', sin_evidencia: 'warn', inconsistente: 'bad', descartado: 'bad', frenada: 'warn', error: 'bad' }
 	const etiquetas: Record<Atencion['tipo'], string> = { abono_parcial: 'Abono parcial', sin_evidencia: 'Sin evidencia', inconsistente: 'Inconsistente', descartado: 'Contrato descartado', frenada: 'Frenada por tope', error: 'Error de la API' }
+	const facturado = t.porCobrarCents + t.cobradoCents
+	const vacio = (titulo: string, texto: string) => html`<div class="vacio"><strong>${titulo}</strong><span>${texto}</span></div>`
+	const pct = facturado ? `${(Math.round((1000 * t.cobradoCents) / facturado) / 10).toLocaleString('es-VE')} %` : '0 %'
 
 	return html`
 	<div class="head"><div><h1>Resumen</h1><p>${d.config.empresa.nombre ? `Cobranza de ${d.config.empresa.nombre}` : 'Estado de la integración con el administrador de facturas.'} · datos al ${date(today())}</p></div>
-		${d.enCurso ? html`<a class="btn" href="/sincronizacion/${d.enCurso}">Ver corrida en curso</a>` : ''}</div>
+		<div class="actions">${d.enCurso ? html`<a class="btn" href="/sincronizacion/${d.enCurso}">Ver corrida en curso</a>` : html`<a class="btn" href="/sincronizacion">Sincronizar</a>`}</div></div>
 
 	${!proveedorListo ? html`<div class="flash warn">Falta configurar el proveedor: sin URL, usuario y contraseña no se puede sincronizar. <a href="/configuracion">Ir a Configuración</a></div>` : ''}
 
-	<div class="kpis">
-		<div class="kpi destacado"><span>Por cobrar</span><strong>${usd(t.porCobrarCents)}</strong><small>${t.abiertas} facturas abiertas</small></div>
-		<div class="kpi"><span>Clientes</span><strong>${t.clientes}</strong><small>${t.contratos} contratos</small></div>
-		<div class="kpi"><span>Facturas abiertas</span><strong>${t.abiertas}</strong><small>${t.vencimientoMasAntiguo ? `la más antigua vence el ${date(t.vencimientoMasAntiguo)}` : 'ninguna pendiente'}</small></div>
-		<div class="kpi"><span>Facturas pagadas</span><strong>${t.pagadas}</strong><small>${usd(t.cobradoCents)} cobrados por el ISP</small></div>
+	<div class="portada">
+		<section class="card hero-card"><div class="body">
+			<span class="subtle">Por cobrar</span>
+			<strong class="hero">${usd(t.porCobrarCents)}</strong>
+			<span class="subtle">${t.abiertas} facturas abiertas de ${t.clientes} clientes${t.vencimientoMasAntiguo ? ` · la más antigua vence el ${date(t.vencimientoMasAntiguo)}` : ''}</span>
+			${facturado ? medidor({ etiqueta: 'Recuperación', fraccion: t.cobradoCents / facturado, texto: pct, detalle: `${usd(t.cobradoCents)} cobrados de ${usd(facturado)} importados` }) : ''}
+		</div></section>
+		<div class="kpis kpis-3">
+			<div class="kpi"><span>Clientes</span><strong>${t.clientes}</strong><small>${t.contratos} contratos</small></div>
+			<div class="kpi"><span>Facturas abiertas</span><strong>${t.abiertas}</strong><small>pendientes de cobro</small></div>
+			<div class="kpi"><span>Facturas pagadas</span><strong>${t.pagadas}</strong><small>${usd(t.cobradoCents)} cobrados por el ISP</small></div>
+		</div>
+	</div>
+
+	<div class="cols">
+		<section class="card"><header><h2>Cartera por periodo</h2><span class="subtle">USD por mes de la cuota</span></header>
+			<div class="body">${d.cartera.length ? graficoCartera(d.cartera, 'Cartera por periodo: por cobrar y cobrado') : vacio('Sin facturas todavía', 'Importa desde el administrador para ver la cartera mes a mes.')}</div></section>
+		<section class="card"><header><h2>Antigüedad de la deuda</h2><span class="subtle">días desde el corte</span></header>
+			<div class="body">${t.abiertas === 0 ? vacio('No hay deuda abierta', 'Cuando importes facturas verás dónde se concentra la deuda.') : html`
+				${barrasHorizontales({ etiqueta: 'Deuda abierta por antigüedad', rampa: true, cabecera: ['Antigüedad', 'Deuda'],
+					filas: d.tramos.map(x => ({ etiqueta: x.etiqueta, valor: x.montoCents, texto: usd(x.montoCents), detalle: `${x.facturas} facturas · ${x.clientes} clientes` })) })}
+				<p class="subtle">Más oscuro, más antigua. Empieza a cobrar por la deuda más vieja: es la que más riesgo tiene de no recuperarse.</p>`}</div></section>
 	</div>
 
 	<div class="cols">
 		<div class="stack">
 			<section class="card"><header><h2>Sincronizar</h2><a href="/sincronizacion">Historial completo</a></header>
-				<div class="body">
-					<div class="cols mitad">
-						<div class="accion"><h3>Importar clientes y facturas</h3><p>Trae las cuotas pendientes del administrador como facturas abiertas.</p>${botonesCorrida('importacion', !proveedorListo || d.enCurso !== null)}</div>
-						<div class="accion"><h3>Actualizar pagadas</h3><p>Revisa el libro de pagos del ISP y marca lo que ya se cobró.</p>${botonesCorrida('pagadas', !proveedorListo || d.enCurso !== null || t.abiertas === 0)}</div>
-					</div>
-				</div></section>
-
-			<section class="card"><header><h2>Antigüedad de la deuda</h2><span class="subtle">días desde la fecha de corte</span></header>
-				<div class="body">${t.abiertas === 0
-					? html`<div class="vacio"><strong>No hay deuda abierta</strong><span>Cuando importes facturas verás aquí dónde está concentrada la deuda.</span></div>`
-					: html`<div class="aging">${d.tramos.map((x, i) => html`<div class="fila"><span>${x.etiqueta}</span>
-						<div class="barra t${i}" title="${x.facturas} facturas de ${x.clientes} clientes"><i style="width:${Math.round(100 * x.montoCents / maxTramo)}%"></i></div>
-						<span class="num">${usd(x.montoCents)} <span class="subtle">· ${x.facturas}</span></span></div>`)}</div>
-						<p class="subtle">Empieza a cobrar por la deuda más vieja: es la que más riesgo tiene de no recuperarse.</p>`}</div></section>
-
+				<div class="body"><div class="cols mitad">
+					<div class="accion"><h3>Importar clientes y facturas</h3><p>Trae las cuotas pendientes del administrador como facturas abiertas.</p>${botonesCorrida('importacion', !proveedorListo || d.enCurso !== null)}</div>
+					<div class="accion"><h3>Actualizar pagadas</h3><p>Revisa el libro de pagos del ISP y marca lo que ya se cobró.</p>${botonesCorrida('pagadas', !proveedorListo || d.enCurso !== null || t.abiertas === 0)}</div>
+				</div></div></section>
 			<section class="card"><header><h2>Últimas corridas</h2><a href="/sincronizacion">Ver todas</a></header>
-				${tablaCorridas(d.corridas, html`<div class="body"><div class="vacio"><strong>Todavía no hay corridas</strong><span>Empieza con «Simular» en Importar: muestra qué se importaría sin escribir nada.</span></div></div>`)}</section>
+				${tablaCorridas(d.corridas, html`<div class="body">${vacio('Todavía no hay corridas', 'Empieza con «Simular» en Importar: muestra qué se importaría sin escribir nada.')}</div>`)}</section>
 		</div>
-
 		<div class="stack">
+			<section class="card"><header><h2>Mayores deudores</h2><a href="/clientes">Todos los clientes</a></header>
+				<div class="body">${d.deudores.length === 0 ? vacio('Sin deudores', 'No hay facturas abiertas.') : barrasHorizontales({
+					etiqueta: 'Clientes con más deuda abierta', cabecera: ['Cliente', 'Deuda'],
+					filas: d.deudores.map(x => ({ etiqueta: x.nombre, valor: x.deudaCents, texto: usd(x.deudaCents), detalle: `${x.facturas} facturas abiertas · ${x.documento}`, enlace: `/clientes/${x.id}` })) })}</div></section>
+			<section class="card"><header><h2>Requiere atención</h2>${d.atencion.length ? pill(String(d.atencion.length), 'warn') : ''}</header>
+				<div class="body">${d.atencion.length === 0
+					? vacio('Todo en orden', 'Aquí aparecen los abonos parciales, las cuotas sin evidencia de pago y los contratos que la API respondió de forma inconsistente.')
+					: html`<ul class="alertas">${d.atencion.slice(0, 6).map(a => html`<li>${pill(etiquetas[a.tipo], iconos[a.tipo])}<div><a href="${a.enlace}"><strong>${a.titulo}</strong></a><p>${a.detalle}</p></div></li>`)}</ul>
+						${d.atencion.length > 6 ? html`<p class="subtle">Y ${d.atencion.length - 6} más en el detalle de las corridas.</p>` : ''}`}</div></section>
 			<section class="card"><header><h2>Proveedor</h2><a href="/configuracion#proveedor">Editar</a></header>
 				<div class="body"><dl class="facts">
 					<dt>API</dt><dd class="mono">${d.config.proveedor.url || '— sin configurar —'}</dd>
@@ -136,12 +171,6 @@ export function vistaResumen(d: {
 						? html`<span class="dot ok"></span>Activa · ${d.proxima ?? ''}`
 						: html`<span class="dot"></span>Desactivada · <a href="/configuracion#automatica">activar</a>`}</dd>
 				</dl></div></section>
-
-			<section class="card"><header><h2>Requiere atención</h2><span class="subtle">${d.atencion.length || ''}</span></header>
-				<div class="body">${d.atencion.length === 0
-					? html`<div class="vacio"><strong>Todo en orden</strong><span>Aquí aparecen los abonos parciales, las cuotas sin evidencia de pago y los contratos que la API respondió de forma inconsistente.</span></div>`
-					: html`<ul class="alertas">${d.atencion.slice(0, 8).map(a => html`<li>${pill(etiquetas[a.tipo], iconos[a.tipo])}<div><a href="${a.enlace}"><strong>${a.titulo}</strong></a><p>${a.detalle}</p></div></li>`)}</ul>
-						${d.atencion.length > 8 ? html`<p class="subtle">Y ${d.atencion.length - 8} más en el detalle de las corridas.</p>` : ''}`}</div></section>
 		</div>
 	</div>`
 }
@@ -185,7 +214,7 @@ function antiguedadPill(vencimiento: string): Raw {
 
 // ---------------------------------------------------------------- Expediente
 
-export function vistaExpediente(e: Expediente): Raw {
+export function vistaExpediente(e: Expediente, cartera: PuntoPeriodo[]): Raw {
 	const c = e.cliente
 	const juridica = c.persona === 'juridica'
 	const iconoEvento: Record<string, Tone> = { cliente_creado: 'info', factura_importada: 'mute', factura_pagada: 'ok', abono_parcial: 'warn' }
@@ -218,6 +247,9 @@ export function vistaExpediente(e: Expediente): Raw {
 				<td>${String(k.plan)}<div class="subtle">${usd(k.precio_cents)}/mes</div></td>
 				<td>${String(k.sucursal)}</td></tr>`)}</tbody></table></div></section>
 	</div>
+
+	${cartera.length > 1 ? html`<section class="card"><header><h2>Facturas por periodo</h2><span class="subtle">USD por mes de la cuota</span></header>
+		<div class="body">${graficoCartera(cartera, `Facturas de ${String(c.nombre)} por periodo`)}</div></section>` : ''}
 
 	<section class="card"><header><h2>Facturas</h2><span class="subtle">una factura por cuota del administrador</span></header>
 		${e.facturas.length === 0 ? html`<div class="body"><div class="vacio"><strong>Sin facturas</strong></div></div>` : html`<div class="table-wrap"><table>
@@ -319,11 +351,16 @@ export function vistaCorrida(c: Corrida, items: ItemCorrida[], filtro: string): 
 		return html`<div class="kpi ${k === DESTACADOS[c.tipo][0] ? 'destacado' : ''}"><span>${def[1]}</span><strong>${fmt(k, def[2])}</strong></div>`
 	})}</div>
 
+	<section class="card"><header><h2>Resultado ${c.tipo === 'importacion' ? 'de cada cuota' : 'de cada factura'}</h2><span class="subtle">pulsa un resultado para filtrar la tabla</span></header>
+		<div class="body">${barrasHorizontales({ etiqueta: 'Distribución de resultados', cabecera: ['Resultado', 'Cantidad'],
+			filas: [...porResultado].sort((a, b) => b[1] - a[1]).map(([r, n]) => ({ etiqueta: etiquetaResultado(r), valor: n, texto: String(n),
+				detalle: `${Math.round((100 * n) / items.length)} % del total`, enlace: `/sincronizacion/${c.id}?resultado=${r}#detalle` })) })}</div></section>
+
 	<section class="card"><header><h2>Todos los contadores</h2></header><div class="body"><dl class="contadores">
 		${contadores.map(([k, label, tipo]) => html`<div class="${(c.resumen[k] ?? 0) === 0 ? 'cero' : ''}"><dt>${label}</dt><dd>${fmt(k, tipo)}</dd></div>`)}
 	</dl></div></section>
 
-	<section class="card"><header><h2>${c.tipo === 'importacion' ? 'Una fila por cuota' : 'Una fila por factura'}</h2>
+	<section class="card" id="detalle"><header><h2>${c.tipo === 'importacion' ? 'Una fila por cuota' : 'Una fila por factura'}</h2>
 		<span class="subtle">${visibles.length} de ${items.length}</span></header>
 		<div class="body"><nav class="chips" aria-label="Filtrar por resultado">
 			<a class="chip" href="/sincronizacion/${c.id}" aria-current="${filtro ? 'false' : 'true'}">Todas <b>${items.length}</b></a>

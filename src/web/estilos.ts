@@ -5,6 +5,69 @@
  */
 
 export const CSS_PANEL = `
+.portada { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 12px; align-items: stretch; }
+.hero-card .body { gap: 8px; height: 100%; align-content: start; }
+.kpis-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.kpis-3 .kpi { align-content: start; }
+.side nav a { display: flex; align-items: center; gap: 10px; }
+.side nav svg { width: 17px; height: 17px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; opacity: .85; }
+@media (max-width: 1000px) { .portada { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 560px) { .kpis-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .side nav svg { display: none; } }
+
+/* ---------------- charts (palette validated: CVD + contrast, light and dark) ---------------- */
+:root { --s1: #2a78d6; --s2: #eb6834; --o1: #86b6ef; --o2: #5598e7; --o3: #2a78d6; --o4: #1c5cab; --o5: #104281;
+	--meter-track: #cde2fb; --grid: #e7eaef; }
+@media (prefers-color-scheme: dark) { :root { --s1: #3987e5; --s2: #d95926; --o1: #184f95; --o2: #256abf; --o3: #3987e5; --o4: #6da7ec; --o5: #9ec5f4;
+	--meter-track: #1c2b47; --grid: #242c3a; } }
+.grafico { margin: 0; display: grid; gap: 10px; min-width: 0; }
+.leyenda { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--muted); }
+.leyenda span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.sw.s1, .columnas i.s1, .hbarras i.s1 { background: var(--s1); }
+.sw.s2, .columnas i.s2 { background: var(--s2); }
+.hbarras i.o1 { background: var(--o1); } .hbarras i.o2 { background: var(--o2); } .hbarras i.o3 { background: var(--o3); }
+.hbarras i.o4 { background: var(--o4); } .hbarras i.o5 { background: var(--o5); }
+.columnas { position: relative; height: 200px; margin-left: 64px; }
+.eje-y { position: absolute; inset: 0; pointer-events: none; }
+.eje-y .tick { position: absolute; left: 0; right: 0; border-top: 1px solid var(--grid); }
+.eje-y .tick span { position: absolute; right: calc(100% + 8px); top: -8px; font-size: 11.5px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.barras { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: space-around; gap: 2px; }
+.col { position: relative; flex: 1; height: 100%; display: flex; align-items: flex-end; justify-content: center; outline: none; border-radius: 6px; }
+.col:hover, .col:focus-visible { background: color-mix(in srgb, var(--sunken) 70%, transparent); }
+.col:focus-visible { box-shadow: 0 0 0 2px var(--primary); }
+.pila { width: min(24px, 70%); display: flex; flex-direction: column; gap: 2px; border-radius: 4px 4px 0 0; overflow: hidden; }
+.pila i { display: block; min-height: 2px; }
+.cap { position: absolute; transform: translateY(-4px); font-size: 11.5px; font-weight: 600; white-space: nowrap; color: var(--fg); }
+.eje-x { display: flex; justify-content: space-around; margin-left: 64px; font-size: 11.5px; color: var(--muted); }
+.eje-x span { flex: 1; text-align: center; white-space: nowrap; }
+.hbarras { display: grid; gap: 8px; }
+.hfila { display: grid; grid-template-columns: minmax(90px, 38%) minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 13px; border-radius: 6px; padding: 2px 4px; outline: none; }
+.hfila:hover, .hfila:focus-visible { background: var(--sunken); }
+.hfila:focus-visible { box-shadow: 0 0 0 2px var(--primary); }
+.hetiqueta a { color: var(--fg); }
+.hetiqueta a:hover { color: var(--primary); }
+.hetiqueta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pista { height: 14px; }
+.pista i { display: block; height: 100%; border-radius: 0 4px 4px 0; }
+.hvalor { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--fg); font-weight: 600; }
+.tabla-datos summary { font-size: 12.5px; color: var(--muted); font-weight: 500; }
+.tabla-datos table { margin-top: 8px; font-size: 13px; }
+.medidor { display: grid; gap: 6px; outline: none; }
+.medidor-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 13px; color: var(--muted); }
+.medidor-cab strong { color: var(--fg); font-size: 18px; }
+.medidor-pista { height: 10px; border-radius: 99px; background: var(--meter-track); overflow: hidden; }
+.medidor-pista i { display: block; height: 100%; background: var(--s1); border-radius: 99px; }
+.medidor small { color: var(--muted); font-size: 12px; }
+.tooltip { position: fixed; z-index: 50; pointer-events: none; background: var(--surface); color: var(--fg); border: 1px solid var(--line);
+	border-radius: 8px; padding: 8px 10px; box-shadow: 0 8px 24px rgb(0 0 0 / 14%); font-size: 12.5px; display: grid; gap: 3px; min-width: 150px; max-width: 280px; }
+.tooltip[hidden] { display: none; }
+.tooltip .t { color: var(--muted); font-size: 12px; }
+.tooltip .r { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+.tooltip .r b { font-variant-numeric: tabular-nums; }
+.tooltip .k { display: inline-block; width: 12px; height: 2px; margin-right: 6px; vertical-align: middle; }
+.tooltip .k.s1 { background: var(--s1); } .tooltip .k.s2 { background: var(--s2); }
+.hero { font-size: 44px !important; line-height: 1.05; letter-spacing: -0.02em; font-variant-numeric: normal !important; }
+@media (max-width: 560px) { .columnas, .eje-x { margin-left: 52px; } .eje-x span:nth-child(even) { visibility: hidden; } .hero { font-size: 34px !important; } }
 input[type=email], input[type=time] { font: 14px var(--font); padding: 7px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--fg); width: 100%; }
 .field-row { align-items: start; }
 .contadores { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 4px 24px; margin: 0; }
@@ -145,6 +208,40 @@ export const JS_PANEL = `
 			if (contador) contador.textContent = visibles
 		})
 	}
+
+
+	// Chart tooltip: one floating element, filled with textContent (labels are data, not HTML).
+	const tt = document.createElement('div')
+	tt.className = 'tooltip'; tt.hidden = true; tt.setAttribute('role', 'tooltip')
+	document.body.appendChild(tt)
+	const mostrar = (el, x, y) => {
+		let data
+		try { data = JSON.parse(el.dataset.tip) } catch { return }
+		tt.replaceChildren()
+		const t = document.createElement('div'); t.className = 't'; t.textContent = data.titulo; tt.appendChild(t)
+		for (const [label, value, clase] of data.filas) {
+			const r = document.createElement('div'); r.className = 'r'
+			const l = document.createElement('span')
+			if (clase) { const k = document.createElement('i'); k.className = 'k ' + clase; l.appendChild(k) }
+			l.appendChild(document.createTextNode(label))
+			const v = document.createElement('b'); v.textContent = value
+			r.append(l, v); tt.appendChild(r)
+		}
+		tt.hidden = false
+		const w = tt.offsetWidth, h = tt.offsetHeight
+		tt.style.left = Math.min(window.innerWidth - w - 8, Math.max(8, x + 14)) + 'px'
+		tt.style.top = Math.max(8, y - h - 12) + 'px'
+	}
+	document.addEventListener('pointermove', e => {
+		const el = e.target.closest && e.target.closest('[data-tip]')
+		if (el) mostrar(el, e.clientX, e.clientY); else tt.hidden = true
+	})
+	document.addEventListener('focusin', e => {
+		const el = e.target.closest && e.target.closest('[data-tip]')
+		if (el) { const r = el.getBoundingClientRect(); mostrar(el, r.left + r.width / 2, r.top) } else tt.hidden = true
+	})
+	document.addEventListener('focusout', () => { tt.hidden = true })
+	document.addEventListener('keydown', e => { if (e.key === 'Escape') tt.hidden = true })
 
 	// Whole row clickable (the name keeps a real link for keyboard and screen readers).
 	document.addEventListener('click', event => {

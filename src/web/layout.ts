@@ -46,6 +46,14 @@ export const CONTRACT_STATUS_TONE: Record<string, Tone> = {
 	ACTIVO: 'ok', CORTADO: 'bad', CORTESIA: 'info', RETIRADO: 'mute', RECHAZADO: 'mute', ANULADO: 'mute', status_unrecognized: 'bad',
 }
 
+/** Simple line icons (24×24 grid), drawn with the current text color. */
+const ICONOS: Record<string, string> = {
+	'/': '<path d="M3 12h4l3 8 4-16 3 8h4"/>',
+	'/clientes': '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c2 .7 3.2 2.5 3.6 5.2"/>',
+	'/sincronizacion': '<path d="M20 11a8 8 0 0 0-14.6-4.5L3 9"/><path d="M3 4v5h5"/><path d="M4 13a8 8 0 0 0 14.6 4.5L21 15"/><path d="M21 20v-5h-5"/>',
+	'/configuracion': '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+}
+
 const NAV = [
 	['/', 'Resumen'],
 	['/clientes', 'Clientes'],
@@ -67,7 +75,7 @@ export function layout(input: { title: string; active: string; body: Raw; flash?
 <div class="shell">
 	<aside class="side">
 		<div class="brand"><span class="mark">C</span><div><strong>Cobrix</strong><small>${esc(input.company)}</small></div></div>
-		<nav>${NAV.map(([href, label]) => `<a href="${href}"${input.active === href ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>
+		<nav>${NAV.map(([href, label]) => `<a href="${href}"${input.active === href ? ' aria-current="page"' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${ICONOS[href]}</svg>${label}</a>`).join('')}</nav>
 		<div class="side-foot">${input.footer ?? ''}</div>
 	</aside>
 	<main class="main">

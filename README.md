@@ -2,7 +2,25 @@
 
 Importa clientes y facturas desde la API del administrador de facturas de un ISP, aplica los pagos que el ISP ya cobró y ofrece un panel para operarlo: configuración, sincronización con simulación, historial de corridas con una fila por cuota, clientes y expediente.
 
-**Decisiones, lo que quedó fuera, uso de IA y punto diferencial: [`NOTA.md`](NOTA.md).**
+| Documento | Qué contiene |
+| --- | --- |
+| [`NOTA.md`](NOTA.md) | Decisiones, lo que quedó fuera, lo que haría con más tiempo, punto diferencial y uso de IA |
+| [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) | Diagramas: vista general, flujo de importación, árbol de decisión de pagos y modelo de datos |
+
+![Resumen del panel](docs/capturas/entrega/01-resumen.png)
+
+<table>
+<tr>
+<td width="50%"><img src="docs/capturas/entrega/03-expediente.png" alt="Expediente del cliente"><br><sub><b>Expediente</b>: totales, contratos, facturas por periodo e historial</sub></td>
+<td width="50%"><img src="docs/capturas/entrega/05-corrida-importacion.png" alt="Detalle de una importación"><br><sub><b>Detalle de corrida</b>: resultado de cada cuota con su motivo, filtrable y exportable a CSV</sub></td>
+</tr>
+<tr>
+<td><img src="docs/capturas/entrega/02-clientes.png" alt="Clientes"><br><sub><b>Clientes</b>: búsqueda por nombre, cédula o RIF</sub></td>
+<td><img src="docs/capturas/entrega/07-configuracion.png" alt="Configuración"><br><sub><b>Configuración</b>: empresa, proveedor y reglas de importación</sub></td>
+</tr>
+</table>
+
+Más capturas en [`docs/capturas/entrega/`](docs/capturas/entrega/), incluidas las de móvil.
 
 ## Levantarlo
 
@@ -38,19 +56,21 @@ Para repetir desde cero: *Configuración › Empezar de cero* vacía Cobrix, y `
 ## Pruebas
 
 ```bash
-npm test             # 56 pruebas, sobre HTTP real contra una copia temporal del administrador
+npm test             # 57 pruebas, sobre HTTP real contra una copia temporal del administrador
 npm run typecheck
 ```
 
 | Archivo | Qué cubre |
 | --- | --- |
 | `test/aceptacion.test.ts` | El ciclo completo del §5: simular → importar → reimportar → pagar y anular en la caja → simular actualización → actualizar → repetir |
-| `test/reglas.test.ts` | Cada regla del §4 como función pura: identificación, periodo, estados, moneda, residuales, respuestas contradictorias, ventana, recientes, pagada, abono parcial, exonerada, sin evidencia y libro inconsistente |
+| `test/reglas.test.ts` | Cada regla del §4 como función pura: identificación, periodo, estados, moneda, residuales, respuestas contradictorias, ventana, recientes, pagada, abono parcial, exonerada, sin evidencia y libro inconsistente; también los ejes de los gráficos |
 | `test/robustez.test.ts` | Credenciales malas, API caída a mitad de la corrida (no queda nada a medias), error HTTP en un contrato, token vencido, corridas simultáneas, topes, días de gracia y la restricción `UNIQUE` |
 | `test/panel.test.ts` | Formularios y validaciones, contraseña oculta, «Probar conexión», lanzar corridas, CSV, búsqueda, vaciar datos y corrida automática diaria |
 | `test/entorno.test.ts` | La prueba entregada, adaptada: ahora comprueba las pantallas reales (ver la nota) |
 
 ## Cómo está hecho
+
+Los diagramas completos están en [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md).
 
 ```
 src/cobrix/                 el lado de Cobrix
@@ -58,11 +78,12 @@ src/cobrix/                 el lado de Cobrix
   reglas.ts                 las reglas del §4 como funciones puras: clasificarContrato() y evaluarPago()
   sincronizacion.ts         las dos corridas (importar y actualizar pagadas), con simulación y progreso
   store.ts                  SQLite de Cobrix: config, clientes, contratos, facturas, eventos, corridas e ítems
-  consultas.ts              lecturas para el panel: totales, antigüedad de la deuda, «requiere atención», expediente
+  consultas.ts              lecturas para el panel: totales, cartera por periodo, antigüedad, mayores deudores, alertas
   programador.ts            corrida automática diaria (America/Caracas)
 src/web/                    el panel, renderizado en el servidor y sin dependencias
   app.ts                    rutas, formularios (POST → redirect → GET), CSV y API de progreso
   vistas.ts                 las pantallas
+  graficos.ts               gráficos en HTML/CSS con tooltip y vista de tabla (paleta validada para daltonismo)
   layout.ts, estilos.ts     base del esqueleto, más estilos y un script pequeño (opcional)
 ```
 

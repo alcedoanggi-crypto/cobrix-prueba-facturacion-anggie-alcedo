@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 
 import { ClienteAdministrador, ErrorApi } from '../cobrix/api.ts'
-import { antiguedad, clientes, expediente, requiereAtencion, totales } from '../cobrix/consultas.ts'
+import { antiguedad, carteraPorPeriodo, clientes, expediente, mayoresDeudores, requiereAtencion, totales } from '../cobrix/consultas.ts'
 import { proximaAutomatica } from '../cobrix/programador.ts'
 import { ESTADOS_CONOCIDOS, TIPOS_DOCUMENTO, type TipoDocumento } from '../cobrix/reglas.ts'
 import { CorridaEnCurso, Sincronizador } from '../cobrix/sincronizacion.ts'
@@ -57,7 +57,7 @@ export function createApp(deps: AppDeps): Server {
 			if (path === '/') {
 				return page('Resumen', '/', vistaResumen({
 					totales: totales(store), config, corridas: store.corridas(6), tramos: antiguedad(store), atencion: requiereAtencion(store),
-					proxima: proximaAutomatica(store), enCurso: sync.corridaEnCurso,
+					proxima: proximaAutomatica(store), enCurso: sync.corridaEnCurso, cartera: carteraPorPeriodo(store), deudores: mayoresDeudores(store),
 				}))
 			}
 			if (path === '/clientes') {
@@ -67,7 +67,7 @@ export function createApp(deps: AppDeps): Server {
 			const cliente = /^\/clientes\/(\d+)$/.exec(path)
 			if (cliente) {
 				const e = expediente(store, Number(cliente[1]))
-				return e ? page(String(e.cliente.nombre), '/clientes', vistaExpediente(e)) : page('No encontrado', '/clientes', noEncontrado('Ese cliente no existe', '/clientes'), 404)
+				return e ? page(String(e.cliente.nombre), '/clientes', vistaExpediente(e, carteraPorPeriodo(store, Number(cliente[1])))) : page('No encontrado', '/clientes', noEncontrado('Ese cliente no existe', '/clientes'), 404)
 			}
 			if (path === '/sincronizacion') {
 				const filtro = url.searchParams.get('ver') ?? ''

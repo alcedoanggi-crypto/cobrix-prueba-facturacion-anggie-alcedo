@@ -75,6 +75,12 @@ En pagos, si las filas de una cuota no coinciden entre sí, el libro se trata co
 
 ## Punto diferencial
 
+- **Un Resumen que ayuda a decidir.** Lo encabezan el monto por cobrar y un medidor de **recuperación** (cobrado frente a importado). Le siguen tres gráficos:
+  - **cartera por periodo:** columnas apiladas de lo que falta cobrar y lo ya cobrado;
+  - **antigüedad de la deuda:** una rampa de un solo tono, donde más oscuro es más antigua;
+  - **mayores deudores:** con enlace a su expediente.
+
+  Los gráficos son HTML y CSS, sin librerías, con tooltip por mouse y teclado y una vista «Ver como tabla». Validé la paleta con un verificador de daltonismo y contraste, en modo claro y oscuro.
 - **«Requiere atención» en el Resumen.** Reúne los abonos parciales, las cuotas sin evidencia, los contratos descartados por respuestas inconsistentes y lo frenado por topes, con enlace a cada caso. Es lo primero que debería mirar un operador.
 - **Antigüedad de la deuda.** Barras por tramos (sin vencer, 1–30, 31–60, 61–90 y más de 90 días desde el corte), con monto y número de facturas. Ayuda a decidir por dónde empezar a cobrar.
 - **Progreso en vivo de la corrida.** Al lanzarla, el panel muestra «12 de 27 contratos» con una barra y abre el resultado al terminar.
@@ -96,7 +102,8 @@ Mi trabajo fue decidir, revisar y verificar. La regla que seguí fue no dar nada
 - **Una duda de diseño sobre los saldos:** ¿un abono parcial reduce el saldo de la factura en Cobrix? Con reducción, el total habría sido USD 950,00. El criterio del enunciado (USD 955,00) lo resolvió: se mantiene el monto completo y el abono se informa aparte.
 - **El orden de las facturas.** El primer orden asignaba números y origen del cliente según el periodo más viejo de *todas* las cuotas. Las facturas de un cliente salían salteadas y LUIS GOMEZ aparecía «creado desde el contrato 900103». Lo cambié para numerar por contrato y tomar el contrato de número más bajo.
 - **Formato de los montos.** Los motivos mostraban «USD 5.00» en lugar del formato local «USD 5,00».
+- **Colores de los gráficos.** No los elegí a ojo: los validé con un verificador de separación para daltonismo y de contraste. Las barras de antigüedad usan un solo tono de claro a oscuro en lugar de verde, amarillo y rojo, porque esos colores se reservan para estados.
 - **Desborde en móvil.** La captura móvil parecía desbordarse. Medí con emulación de dispositivo: la página mide exactamente 390 px y solo las tablas anchas se desplazan dentro de su recuadro, que es lo deseado. El falso positivo venía del ancho mínimo de ventana de Chrome en Windows.
 - **Un error mío al guardar.** Incluí en un commit la base del administrador modificada por pagos del simulador; lo revertí para entregarla intacta.
 
-Todo lo anterior está cubierto por las 56 pruebas: el ciclo de aceptación completo pasa contra la API por HTTP.
+Todo lo anterior está cubierto por las 57 pruebas: el ciclo de aceptación completo pasa contra la API por HTTP.

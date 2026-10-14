@@ -123,3 +123,25 @@ export function diasDesde(fecha: string, hoy = today()): number {
 	return Math.round((Date.parse(`${hoy}T00:00:00Z`) - Date.parse(`${fecha}T00:00:00Z`)) / 86_400_000)
 }
 
+
+export interface PuntoPeriodo { periodo: string; porCobrarCents: number; cobradoCents: number; abiertas: number; pagadas: number }
+
+/** Portfolio by billing period: what is still owed and what the ISP already collected. Optionally for one customer. */
+export function carteraPorPeriodo(store: Store, clienteId?: number): PuntoPeriodo[] {
+	const rows = store.db.prepare(`SELECT periodo,
+			COALESCE(SUM(saldo_cents) FILTER (WHERE estado = 'abierta'), 0) AS por_cobrar,
+			COALESCE(SUM(total_cents) FILTER (WHERE estado = 'pagada'), 0) AS cobrado,
+			COUNT(*) FILTER (WHERE estado = 'abierta') AS abiertas,
+			COUNT(*) FILTER (WHERE estado = 'pagada') AS pagadas
+		FROM facturas WHERE ? IS NULL OR cliente_id = ? GROUP BY periodo ORDER BY periodo`).all(clienteId ?? null, clienteId ?? null) as Row[]
+	return rows.map(r => ({ periodo: String(r.periodo), porCobrarCents: num(r.por_cobrar), cobradoCents: num(r.cobrado), abiertas: num(r.abiertas), pagadas: num(r.pagadas) }))
+}
+
+export interface Deudor { id: number; nombre: string; documento: string; deudaCents: number; facturas: number }
+
+export function mayoresDeudores(store: Store, limite = 5): Deudor[] {
+	const rows = store.db.prepare(`SELECT c.id, c.nombre, c.documento, SUM(f.saldo_cents) AS deuda, COUNT(*) AS facturas
+		FROM facturas f JOIN clientes c ON c.id = f.cliente_id WHERE f.estado = 'abierta'
+		GROUP BY c.id ORDER BY deuda DESC, c.nombre LIMIT ?`).all(limite) as Row[]
+	return rows.map(r => ({ id: num(r.id), nombre: String(r.nombre), documento: String(r.documento), deudaCents: num(r.deuda), facturas: num(r.facturas) }))
+}
