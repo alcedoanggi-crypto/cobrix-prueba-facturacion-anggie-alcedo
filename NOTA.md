@@ -103,7 +103,7 @@ En pagos, si las filas de una cuota no coinciden entre sí, el libro se trata co
 
 ## Uso de IA
 
-Usé **Claude Code (Claude)** como par de programación durante todo el desarrollo:
+Usé **un asistente de IA para programación** como par de programación durante todo el desarrollo:
 - para leer el enunciado, la API y el código del simulador y armar la lista de casos;
 - para proponer la arquitectura;
 - para escribir el código, las pruebas y esta documentación.

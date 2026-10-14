@@ -106,7 +106,7 @@ npm start                   # panel en http://127.0.0.1:4300
 
 > Que se use con criterio, que se verifique lo que produce y que se explique en la nota.
 
-**Cómo se usó.** Se usó Claude Code como par de programación para analizar el enunciado y la API, proponer la arquitectura, escribir el código, las pruebas y la documentación. La regla fue **no dar nada por bueno sin una verificación independiente**:
+**Cómo se usó.** Se usó un asistente de IA para programación como par de programación para analizar el enunciado y la API, proponer la arquitectura, escribir el código, las pruebas y la documentación. La regla fue **no dar nada por bueno sin una verificación independiente**:
 - **Pruebas automáticas** contra la API real por HTTP: 66 pruebas.
 - **Recorridos en un navegador real** automatizado con Selenium, leyendo la consola del navegador.
 - **Capturas revisadas** en escritorio y en celular.
