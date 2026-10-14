@@ -8,6 +8,8 @@ Importa clientes y facturas desde la API del administrador de facturas de un ISP
 | [`NOTA.md`](NOTA.md) | Decisiones, lo que quedó fuera, lo que haría con más tiempo, punto diferencial y uso de IA |
 | [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) | Diagramas: vista general, flujo de importación, árbol de decisión de pagos y modelo de datos |
 
+🎬 **Video demo (2:31):** [`docs/video/demo.mp4`](docs/video/demo.mp4). Recorre cada criterio de evaluación con subtítulos.
+
 ![Resumen del panel](docs/capturas/entrega/01-resumen.png)
 
 <table>
