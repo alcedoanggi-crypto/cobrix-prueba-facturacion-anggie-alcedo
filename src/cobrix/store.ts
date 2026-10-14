@@ -227,11 +227,6 @@ export class Store {
 			factura: r.factura as string | null,
 		}))
 	}
-
-	ultimaAutomatica(fecha: string): Corrida | undefined {
-		const row = this.db.prepare(`SELECT * FROM corridas WHERE origen = 'automatica' AND substr(inicio, 1, 10) >= ? ORDER BY id DESC LIMIT 1`).get(fecha) as Row | undefined
-		return row ? aCorrida(row) : undefined
-	}
 }
 
 function aCorrida(row: Row): Corrida {

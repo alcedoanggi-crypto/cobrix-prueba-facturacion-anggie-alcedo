@@ -61,11 +61,15 @@ describe('entorno de la prueba', () => {
 		}
 	})
 
-	it('el panel sirve el esqueleto y el enunciado, sin pantalla de simulador', async () => {
-		for (const path of ['/', '/clientes', '/clientes/1', '/sincronizacion', '/configuracion']) {
-			const body = await (await fetch(`${panelBase}${path}`)).text()
-			assert.match(body, /Por implementar/, path)
+	// Originally checked the «Por implementar» placeholders; now it checks the implemented screens.
+	it('el panel sirve sus pantallas y el enunciado, sin pantalla de simulador', async () => {
+		const titulos: Record<string, RegExp> = { '/': /<h1>Resumen/, '/clientes': /<h1>Clientes/, '/sincronizacion': /<h1>Sincronización/, '/configuracion': /<h1>Configuración/ }
+		for (const [path, titulo] of Object.entries(titulos)) {
+			const res = await fetch(`${panelBase}${path}`)
+			assert.equal(res.status, 200, path)
+			assert.match(await res.text(), titulo, path)
 		}
+		assert.equal((await fetch(`${panelBase}/clientes/1`)).status, 404, 'sin datos, el expediente no existe')
 		assert.match(await (await fetch(`${panelBase}/enunciado`)).text(), /Criterios de aceptación/)
 		assert.equal((await fetch(`${panelBase}/simulador`)).status, 404)
 		assert.doesNotMatch(await (await fetch(`${panelBase}/`)).text(), /Simulador del administrador/)

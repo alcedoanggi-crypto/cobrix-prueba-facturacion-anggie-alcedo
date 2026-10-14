@@ -6,6 +6,10 @@
 /** Amounts are handled in cents (integers) to avoid floating point drift. */
 export const toCents = (value: number): number => Math.round(value * 100)
 
+const formato = new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+/** `150000` → `USD 1.500,00`, as the operator reads amounts. */
+export const usdTexto = (cents: number): string => `USD ${formato.format(cents / 100)}`
+
 // ---------------------------------------------------------------- identification
 
 export type TipoDocumento = 'V' | 'E' | 'J' | 'G' | 'P'
@@ -232,7 +236,7 @@ export function clasificarContrato(
 		return {
 			contrato, identificacion, candidatas: [],
 			excluidas: [...excluidas, { contratoId, deudaId: null, periodo: null, montoCents: null, resultado: 'moneda_incoherente',
-				motivo: `Reporta USD pero sus cuotas (máx. USD ${(mayor / 100).toFixed(2)}) son menos del ${reglas.umbralMonedaIncoherente * 100} % del plan (USD ${(contrato.precioCents / 100).toFixed(2)})` }],
+				motivo: `Reporta USD pero sus cuotas (máx. ${usdTexto(mayor)}) son menos del ${reglas.umbralMonedaIncoherente * 100} % del plan (${usdTexto(contrato.precioCents)})` }],
 		}
 	}
 	if (identificacion.tipo && reglas.tiposExcluidos.includes(identificacion.tipo)) {
@@ -335,10 +339,10 @@ export function evaluarPago(deudaId: string, contratoId: number, saldoCobrixCent
 			facturaAdmin: { id: ultima.idFactura, numero: ultima.numFactura, fecha: ultima.fecha } }
 	}
 	if (saldoAdminCents < saldoCobrixCents) {
-		return { resultado: 'abono_parcial', motivo: `Abono parcial: el ISP cobró USD ${((saldoCobrixCents - saldoAdminCents) / 100).toFixed(2)} y quedan USD ${(saldoAdminCents / 100).toFixed(2)}`, saldoAdminCents, facturaAdmin: null }
+		return { resultado: 'abono_parcial', motivo: `Abono parcial: el ISP cobró ${usdTexto((saldoCobrixCents - saldoAdminCents))} y quedan ${usdTexto(saldoAdminCents)}`, saldoAdminCents, facturaAdmin: null }
 	}
 	if (saldoAdminCents > saldoCobrixCents) {
-		return { resultado: 'inconsistente', motivo: `El ISP reporta un saldo (USD ${(saldoAdminCents / 100).toFixed(2)}) mayor que el de Cobrix`, saldoAdminCents, facturaAdmin: null }
+		return { resultado: 'inconsistente', motivo: `El ISP reporta un saldo (${usdTexto(saldoAdminCents)}) mayor que el de Cobrix`, saldoAdminCents, facturaAdmin: null }
 	}
 	return { resultado: 'sigue_abierta', motivo: 'Sin cobros nuevos en el ISP', saldoAdminCents, facturaAdmin: null }
 }

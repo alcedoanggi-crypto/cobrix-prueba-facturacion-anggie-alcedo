@@ -53,27 +53,30 @@ const NAV = [
 	['/configuracion', 'Configuración'],
 ] as const
 
-export function layout(input: { title: string; active: string; body: Raw; flash?: { tone: Tone; text: string } | undefined; company: string }): string {
+export function layout(input: { title: string; active: string; body: Raw; flash?: { tone: Tone; text: string } | undefined; company: string; footer?: string }): string {
 	return `<!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(input.title)} · Prueba de facturación</title>
+<title>${esc(input.title)} · Cobrix</title>
 <link rel="stylesheet" href="/app.css">
+<script src="/app.js" defer></script>
 </head>
 <body>
 <div class="shell">
 	<aside class="side">
-		<div class="brand"><span class="mark">C</span><div><strong>Cobrix</strong><small>Prueba de facturación</small></div></div>
+		<div class="brand"><span class="mark">C</span><div><strong>Cobrix</strong><small>${esc(input.company)}</small></div></div>
 		<nav>${NAV.map(([href, label]) => `<a href="${href}"${input.active === href ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>
-		<div class="side-foot">${esc(input.company)}</div>
+		<div class="side-foot">${input.footer ?? ''}</div>
 	</aside>
 	<main class="main">
 		${input.flash ? `<div class="flash ${input.flash.tone}" role="status">${esc(input.flash.text)}</div>` : ''}
 		${input.body.html}
 	</main>
 </div>
+<dialog id="confirmar"><form method="dialog"><div class="body"><h2 data-titulo>¿Continuar?</h2><p data-texto></p></div>
+	<footer><button class="btn" value="cancelar">Cancelar</button><button class="btn primary" value="ok" data-ok>Continuar</button></footer></form></dialog>
 </body>
 </html>`
 }

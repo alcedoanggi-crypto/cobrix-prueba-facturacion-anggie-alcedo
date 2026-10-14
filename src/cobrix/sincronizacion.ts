@@ -7,7 +7,7 @@
 import { addCivilDays, addMonths, currentPeriod, lastDayOfPeriod } from '../shared/dates.ts'
 import { ClienteAdministrador, ErrorApi } from './api.ts'
 import {
-	clasificarContrato, evaluarPago, toCents,
+	clasificarContrato, evaluarPago, toCents, usdTexto,
 	type ContratoClasificado, type CuotaLeida, type EvaluacionPago, type ItemImportacion, type ReglasImportacion,
 } from './reglas.ts'
 import { numeroFactura, type Configuracion, type Corrida, type ItemCorrida, type Store } from './store.ts'
@@ -119,11 +119,11 @@ export class Sincronizador {
 			} else if (topeFacturas !== null && nuevas.length >= topeFacturas) {
 				decisiones.set(cuota.deudaId, { ...base, resultado: 'frenada_tope', motivo: `Se alcanzó el tope de ${topeFacturas} facturas nuevas por corrida` })
 			} else if (topeMontoCents !== null && montoNuevo + cuota.montoCents > topeMontoCents) {
-				decisiones.set(cuota.deudaId, { ...base, resultado: 'frenada_tope', motivo: `Superaría el tope de USD ${(topeMontoCents / 100).toFixed(2)} nuevos por corrida` })
+				decisiones.set(cuota.deudaId, { ...base, resultado: 'frenada_tope', motivo: `Superaría el tope de ${usdTexto(topeMontoCents)} nuevos por corrida` })
 			} else {
 				nuevas.push({ cuota, contrato })
 				montoNuevo += cuota.montoCents
-				decisiones.set(cuota.deudaId, { ...base, resultado: 'importada', motivo: 'Factura abierta creada' })
+				decisiones.set(cuota.deudaId, { ...base, resultado: 'importada', motivo: simulacion ? 'Se crearía una factura abierta' : 'Factura abierta creada' })
 			}
 		}
 
@@ -177,8 +177,12 @@ export class Sincronizador {
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 		const evento = db.prepare('INSERT INTO eventos (cliente_id, factura_id, tipo, fecha, titulo, detalle) VALUES (?, ?, ?, ?, ?, ?)')
 
-		// Customers: one per normalized identification, created only when they get an invoice.
-		for (const { contrato: c } of nuevas) {
+		// Insert grouped by contract and period, so a customer's invoice numbers read in order.
+		const enOrden = [...nuevas].sort((a, b) => a.cuota.contratoId - b.cuota.contratoId || a.cuota.periodo.localeCompare(b.cuota.periodo))
+
+		// Customers: one per normalized identification, created only when they get an invoice,
+		// from their lowest contract id (the first one we read).
+		for (const { contrato: c } of enOrden) {
 			const ident = c.identificacion!
 			if (clienteId.has(ident.id)) continue
 			const existente = buscarCliente.get(ident.id) as { id: number } | undefined
@@ -208,7 +212,7 @@ export class Sincronizador {
 		const crearFactura = db.prepare(`INSERT INTO facturas (deuda_id, cliente_id, contrato_id, periodo, descripcion, vencimiento, corte, total_cents, saldo_cents, estado, importada_en, corrida_id)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'abierta', ?, ?)`)
 		const numeros = new Map<string, string>()
-		for (const { cuota, contrato } of nuevas) {
+		for (const { cuota, contrato } of enOrden) {
 			const cliente = clienteId.get(contrato.identificacion!.id)!
 			const vencimiento = `${cuota.periodo}-01`
 			const r = crearFactura.run(cuota.deudaId, cliente, cuota.contratoId, cuota.periodo, cuota.descripcion, vencimiento,
@@ -328,7 +332,7 @@ function evaluarDesdeContrato(deudaId: string, saldoCobrixCents: number, filas: 
 	const saldo = toCents(fila.deuda)
 	if (saldo === saldoCobrixCents) return { resultado: 'sigue_abierta', motivo: 'Aún no está en el libro; el contrato la sigue listando pendiente', saldoAdminCents: saldo, facturaAdmin: null }
 	if (saldo > 0 && saldo < saldoCobrixCents) {
-		return { resultado: 'abono_parcial', motivo: `Abono parcial según el contrato: quedan USD ${(saldo / 100).toFixed(2)}`, saldoAdminCents: saldo, facturaAdmin: null }
+		return { resultado: 'abono_parcial', motivo: `Abono parcial según el contrato: quedan ${usdTexto(saldo)}`, saldoAdminCents: saldo, facturaAdmin: null }
 	}
 	return null
 }
