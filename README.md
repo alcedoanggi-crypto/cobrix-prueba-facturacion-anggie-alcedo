@@ -4,6 +4,7 @@ Importa clientes y facturas desde la API del administrador de facturas de un ISP
 
 | Documento | Qué contiene |
 | --- | --- |
+| [`docs/CRITERIOS.md`](docs/CRITERIOS.md) | **Cómo la entrega cubre cada criterio de evaluación**, con dónde verlo y cómo comprobarlo |
 | [`NOTA.md`](NOTA.md) | Decisiones, lo que quedó fuera, lo que haría con más tiempo, punto diferencial y uso de IA |
 | [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) | Diagramas: vista general, flujo de importación, árbol de decisión de pagos y modelo de datos |
 
